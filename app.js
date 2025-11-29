@@ -1,3 +1,6 @@
+/* ------------------------------------
+   Species JSON Sources
+------------------------------------ */
 const speciesFiles = {
   deer: "deer_seasons.json",
   moose: "moose_seasons.json",
@@ -7,18 +10,20 @@ const speciesFiles = {
 };
 
 /* ------------------------------------
-   MAP INITIALIZATION (Standard Basemap)
+   MAP INITIALIZATION
 ------------------------------------ */
 let map = L.map("map", { zoomControl: false }).setView([50, -85], 4);
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+// ⭐ FIXED — always-visible map (stable OSM tile server)
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 12
 }).addTo(map);
 
+// Add zoom control
 L.control.zoom({ position: "bottomright" }).addTo(map);
 
 /* ------------------------------------
-   WMU STYLES
+   WMU POLYGON STYLE
 ------------------------------------ */
 function defaultStyle() {
   return {
@@ -30,10 +35,10 @@ function defaultStyle() {
 
 function highlightStyle() {
   return {
-    color: "#ff8800",
+    color: "#ff8800",  // neon orange
     weight: 4,
-    fillOpacity: 0,
-    opacity: 1
+    opacity: 1,
+    fillOpacity: 0
   };
 }
 
@@ -41,8 +46,9 @@ function highlightStyle() {
    LOAD WMU GEOJSON
 ------------------------------------ */
 let wmuLayer = null;
-let wmuIndex = {};
+let wmuIndex = {};   // stores WMU → polygon reference
 
+// Extract WMU code from the simplified GeoJSON (uses OFFICIAL_N)
 function getWMUCodeFromFeature(feature) {
   if (!feature || !feature.properties) return null;
   return String(feature.properties.OFFICIAL_N || "").trim();
@@ -55,12 +61,12 @@ fetch("wmu.json")
       style: defaultStyle,
       onEachFeature: (feature, layer) => {
         const code = getWMUCodeFromFeature(feature);
-        if (code) {
 
+        if (code) {
           // store reference for highlight
           wmuIndex[code] = layer;
 
-          // click polygon → select WMU
+          // Clicking polygon → sets WMU input + highlights
           layer.on("click", () => {
             document.getElementById("wmu-input").value = code;
             highlightWMU(code);
@@ -68,90 +74,3 @@ fetch("wmu.json")
         }
       }
     }).addTo(map);
-
-    map.fitBounds(wmuLayer.getBounds(), { padding: [20, 20] });
-  });
-
-/* ------------------------------------
-   HIGHLIGHT WMU
------------------------------------- */
-function highlightWMU(code) {
-  if (!wmuLayer) return false;
-
-  wmuLayer.setStyle(defaultStyle);
-
-  const layer = wmuIndex[code];
-  if (!layer) return false;
-
-  layer.setStyle(highlightStyle());
-  map.fitBounds(layer.getBounds(), { padding: [20, 20] });
-
-  return true;
-}
-
-/* ------------------------------------
-   RESULTS PANEL
------------------------------------- */
-const resultsPanel = document.getElementById("results-panel");
-const resultsBody = document.getElementById("results");
-const resultsTitle = document.getElementById("results-title");
-const resultsClose = document.getElementById("results-close");
-
-function openResults() {
-  resultsPanel.classList.add("open");
-}
-function closeResults() {
-  resultsPanel.classList.remove("open");
-}
-resultsClose.addEventListener("click", closeResults);
-
-/* ------------------------------------
-   BUTTON 1 — FIND WMU
------------------------------------- */
-document.getElementById("btn-find-wmu").addEventListener("click", () => {
-  const wmu = document.getElementById("wmu-input").value.trim();
-  if (!wmu) return alert("Enter WMU first.");
-
-  const ok = highlightWMU(wmu);
-  if (!ok) alert("WMU not found on map.");
-});
-
-/* ------------------------------------
-   BUTTON 2 — SHOW SEASONS
------------------------------------- */
-document.getElementById("btn-show-regs").addEventListener("click", () => {
-  const wmu = document.getElementById("wmu-input").value.trim();
-  const species = document.getElementById("species-select").value;
-
-  if (!wmu) return alert("Enter WMU first.");
-
-  fetch(speciesFiles[species])
-    .then(res => res.json())
-    .then(data => {
-      if (!data[wmu]) {
-        resultsBody.innerHTML = `<p>No season data for WMU ${wmu}</p>`;
-        openResults();
-        return;
-      }
-
-      renderSeasons(wmu, species, data[wmu]);
-    });
-});
-
-function renderSeasons(wmu, species, entry) {
-  const titleText = `WMU ${wmu} — ${species.replace("_", " ").toUpperCase()}`;
-  resultsTitle.textContent = titleText;
-
-  let html = `<h2>${titleText}</h2>`;
-  for (let cat in entry) {
-    if (!entry[cat].length) continue;
-    html += `<h3>${cat.toUpperCase()}</h3><ul>`;
-    entry[cat].forEach(line => {
-      html += `<li>${line}</li>`;
-    });
-    html += `</ul>`;
-  }
-
-  resultsBody.innerHTML = html;
-  openResults();
-}
