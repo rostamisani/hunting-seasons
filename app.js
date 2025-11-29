@@ -46,11 +46,9 @@ let currentHighlightedLayer = null;
 
 // Extract WMU code from properties (uses OFFICIAL_N)
 function getWMUCodeFromFeature(feature) {
-  if (!feature || !feature.properties) return null;
-  const props = feature.properties;
-  if (props.OFFICIAL_N !== undefined && props.OFFICIAL_N !== null && props.OFFICIAL_N !== "") {
-    return String(props.OFFICIAL_N).trim();
-  }
+    if (!feature || !feature.properties) return null;
+    return String(feature.properties.OFFICIAL_N || "").trim();
+}
   return null;
 }
 
@@ -145,35 +143,33 @@ resultsClose.addEventListener("click", (e) => {
 });
 
 // Search + seasons
-document.getElementById("search-btn").addEventListener("click", () => {
-  const wmuInput = document.getElementById("wmu-input").value.trim();
-  const species = document.getElementById("species-select").value;
+document.getElementById("btn-find-wmu").addEventListener("click", () => {
+    const wmuCode = document.getElementById("wmu-input").value.trim();
+    if (!wmuCode) return alert("Enter WMU first");
 
-  if (!wmuInput) {
-    showMessage("Please enter a WMU number.");
-    return;
-  }
-
-  const found = highlightWMU(wmuInput);
-
-  const file = speciesFiles[species];
-  fetch(file)
-    .then(res => res.json())
-    .then(data => {
-      const entry = data[wmuInput];
-      if (!entry) {
-        const mapPart = found ? "" : " (and it may not exist on the map)";
-        showMessage(`No season data found for WMU ${wmuInput} and ${species}.${mapPart}`);
-        return;
-      }
-      renderSeasons(wmuInput, species, entry);
-    })
-    .catch(err => {
-      console.error("Error loading species JSON:", err);
-      showMessage("Error loading season data. Please try again.");
-    });
+    const found = highlightWMU(wmuCode);
+    if (!found) {
+        alert("WMU not found on map");
+    }
 });
 
+// BUTTON 2 — SHOW HUNTING REGULATION
+document.getElementById("btn-show-regs").addEventListener("click", () => {
+    const wmu = document.getElementById("wmu-input").value.trim();
+    const species = document.getElementById("species-select").value;
+
+    if (!wmu) return alert("Enter WMU first");
+
+    fetch(speciesFiles[species])
+        .then(res => res.json())
+        .then(data => {
+            if (!data[wmu]) {
+                showMessage("No data found for WMU " + wmu);
+                return;
+            }
+            renderSeasons(wmu, species, data[wmu]);
+        });
+});
 function showMessage(msg) {
   resultsTitle.textContent = "Message";
   resultsBody.innerHTML = `<p>${msg}</p>`;
