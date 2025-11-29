@@ -1,4 +1,3 @@
-
 const speciesFiles = {
   deer: "deer_seasons.json",
   moose: "moose_seasons.json",
@@ -7,52 +6,48 @@ const speciesFiles = {
   small_game: "small_game_seasons.json"
 };
 
-// Leaflet map with dark base layer
-let map = L.map('map', {
-  zoomControl: false
-}).setView([50, -85], 4);
+/* ------------------------------------
+   MAP INITIALIZATION (Standard Basemap)
+------------------------------------ */
+let map = L.map("map", { zoomControl: false }).setView([50, -85], 4);
 
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-  maxZoom: 12,
-  attribution: '&copy; OpenStreetMap contributors, &copy; CARTO'
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 12
 }).addTo(map);
 
-L.control.zoom({
-  position: 'bottomright'
-}).addTo(map);
+L.control.zoom({ position: "bottomright" }).addTo(map);
 
+/* ------------------------------------
+   WMU STYLES
+------------------------------------ */
 function defaultStyle() {
   return {
     color: "#4b5563",
     weight: 1,
-    fillOpacity: 0,
-    className: "wmu-default"
+    fillOpacity: 0
   };
 }
 
 function highlightStyle() {
   return {
-    color: "#f97316",
-    weight: 5,
+    color: "#ff8800",
+    weight: 4,
     fillOpacity: 0,
-    opacity: 1,
-    className: "wmu-default wmu-selected"
+    opacity: 1
   };
 }
 
+/* ------------------------------------
+   LOAD WMU GEOJSON
+------------------------------------ */
 let wmuLayer = null;
-const wmuIndex = {};
-let currentHighlightedLayer = null;
+let wmuIndex = {};
 
-// Extract WMU code from properties (uses OFFICIAL_N)
 function getWMUCodeFromFeature(feature) {
-    if (!feature || !feature.properties) return null;
-    return String(feature.properties.OFFICIAL_N || "").trim();
-}
-  return null;
+  if (!feature || !feature.properties) return null;
+  return String(feature.properties.OFFICIAL_N || "").trim();
 }
 
-// Load WMU GeoJSON
 fetch("wmu.json")
   .then(res => res.json())
   .then(data => {
@@ -61,15 +56,11 @@ fetch("wmu.json")
       onEachFeature: (feature, layer) => {
         const code = getWMUCodeFromFeature(feature);
         if (code) {
+
+          // store reference for highlight
           wmuIndex[code] = layer;
 
-          // Label on hover
-          layer.bindTooltip(`WMU ${code}`, {
-            direction: "center",
-            className: "wmu-label"
-          });
-
-          // Tap/click selects WMU
+          // click polygon → select WMU
           layer.on("click", () => {
             document.getElementById("wmu-input").value = code;
             highlightWMU(code);
@@ -78,118 +69,89 @@ fetch("wmu.json")
       }
     }).addTo(map);
 
-    try {
-      map.fitBounds(wmuLayer.getBounds(), { padding: [20, 20] });
-    } catch (e) {
-      console.warn("Could not fit bounds:", e);
-    }
-  })
-  .catch(err => {
-    console.error("Error loading wmu.json:", err);
+    map.fitBounds(wmuLayer.getBounds(), { padding: [20, 20] });
   });
 
-function clearHighlight() {
-  if (!wmuLayer) return;
-  wmuLayer.setStyle(defaultStyle);
-  if (currentHighlightedLayer && currentHighlightedLayer._path) {
-    currentHighlightedLayer._path.classList.remove("wmu-highlight");
-  }
-  currentHighlightedLayer = null;
-}
-
-function highlightWMU(wmuCodeRaw) {
+/* ------------------------------------
+   HIGHLIGHT WMU
+------------------------------------ */
+function highlightWMU(code) {
   if (!wmuLayer) return false;
-  const wmuCode = String(wmuCodeRaw).trim();
 
-  clearHighlight();
+  wmuLayer.setStyle(defaultStyle);
 
-  const layer = wmuIndex[wmuCode];
-  if (layer) {
-    layer.setStyle(highlightStyle());
+  const layer = wmuIndex[code];
+  if (!layer) return false;
 
-    // Add animated neon glow via CSS class on the SVG path
-    if (layer._path) {
-      layer._path.classList.add("wmu-highlight");
-    }
+  layer.setStyle(highlightStyle());
+  map.fitBounds(layer.getBounds(), { padding: [20, 20] });
 
-    try {
-      map.fitBounds(layer.getBounds(), { padding: [20, 20] });
-    } catch (e) {
-      console.warn("Could not fit bounds for WMU", wmuCode, e);
-    }
-    currentHighlightedLayer = layer;
-    return true;
-  }
-  return false;
+  return true;
 }
 
-// Results slide panel
+/* ------------------------------------
+   RESULTS PANEL
+------------------------------------ */
 const resultsPanel = document.getElementById("results-panel");
 const resultsBody = document.getElementById("results");
 const resultsTitle = document.getElementById("results-title");
 const resultsClose = document.getElementById("results-close");
 
-function openResultsPanel() {
+function openResults() {
   resultsPanel.classList.add("open");
 }
-
-function closeResultsPanel() {
+function closeResults() {
   resultsPanel.classList.remove("open");
 }
+resultsClose.addEventListener("click", closeResults);
 
-resultsClose.addEventListener("click", (e) => {
-  e.stopPropagation();
-  closeResultsPanel();
-});
-
-// Search + seasons
+/* ------------------------------------
+   BUTTON 1 — FIND WMU
+------------------------------------ */
 document.getElementById("btn-find-wmu").addEventListener("click", () => {
-    const wmuCode = document.getElementById("wmu-input").value.trim();
-    if (!wmuCode) return alert("Enter WMU first");
+  const wmu = document.getElementById("wmu-input").value.trim();
+  if (!wmu) return alert("Enter WMU first.");
 
-    const found = highlightWMU(wmuCode);
-    if (!found) {
-        alert("WMU not found on map");
-    }
+  const ok = highlightWMU(wmu);
+  if (!ok) alert("WMU not found on map.");
 });
 
-// BUTTON 2 — SHOW HUNTING REGULATION
+/* ------------------------------------
+   BUTTON 2 — SHOW SEASONS
+------------------------------------ */
 document.getElementById("btn-show-regs").addEventListener("click", () => {
-    const wmu = document.getElementById("wmu-input").value.trim();
-    const species = document.getElementById("species-select").value;
+  const wmu = document.getElementById("wmu-input").value.trim();
+  const species = document.getElementById("species-select").value;
 
-    if (!wmu) return alert("Enter WMU first");
+  if (!wmu) return alert("Enter WMU first.");
 
-    fetch(speciesFiles[species])
-        .then(res => res.json())
-        .then(data => {
-            if (!data[wmu]) {
-                showMessage("No data found for WMU " + wmu);
-                return;
-            }
-            renderSeasons(wmu, species, data[wmu]);
-        });
+  fetch(speciesFiles[species])
+    .then(res => res.json())
+    .then(data => {
+      if (!data[wmu]) {
+        resultsBody.innerHTML = `<p>No season data for WMU ${wmu}</p>`;
+        openResults();
+        return;
+      }
+
+      renderSeasons(wmu, species, data[wmu]);
+    });
 });
-function showMessage(msg) {
-  resultsTitle.textContent = "Message";
-  resultsBody.innerHTML = `<p>${msg}</p>`;
-  openResultsPanel();
-}
 
 function renderSeasons(wmu, species, entry) {
   const titleText = `WMU ${wmu} — ${species.replace("_", " ").toUpperCase()}`;
   resultsTitle.textContent = titleText;
 
   let html = `<h2>${titleText}</h2>`;
-  for (let category in entry) {
-    const lines = entry[category];
-    if (!Array.isArray(lines) || lines.length === 0) continue;
-    html += `<h3>${category.toUpperCase()}</h3><ul>`;
-    for (let line of lines) {
+  for (let cat in entry) {
+    if (!entry[cat].length) continue;
+    html += `<h3>${cat.toUpperCase()}</h3><ul>`;
+    entry[cat].forEach(line => {
       html += `<li>${line}</li>`;
-    }
+    });
     html += `</ul>`;
   }
+
   resultsBody.innerHTML = html;
-  openResultsPanel();
+  openResults();
 }
